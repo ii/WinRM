@@ -91,6 +91,7 @@ module WinRM
 
       # compare @ssl_peer_fingerprint to current ssl context
       def verify_ssl_fingerprint(cert)
+        return unless cert
         conn_fingerprint = OpenSSL::Digest::SHA1.new(cert.to_der).to_s
         return unless @ssl_peer_fingerprint.casecmp(conn_fingerprint) != 0
         fail "ssl fingerprint mismatch!!!!\n"

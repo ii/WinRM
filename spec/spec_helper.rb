@@ -41,6 +41,41 @@ module ConnectionHelper
       result
     end
   end
+
+  # rubocop:disable Metrics/LineLength
+  def create_https_listener
+    winrm = winrm_connection
+    winrm.run_powershell_script(<<POWERSHELL)
+netsh advfirewall firewall add rule name="WinRM 5986" protocol=TCP dir=in localport=5986 action=allow
+
+$SourceStoreScope = 'LocalMachine'
+$SourceStorename = 'Remote Desktop'
+
+$SourceStore = New-Object  -TypeName System.Security.Cryptography.X509Certificates.X509Store  -ArgumentList $SourceStorename, $SourceStoreScope
+$SourceStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+
+$cert = $SourceStore.Certificates | Where-Object  -FilterScript {
+$_.subject -like '*'
+}
+
+$DestStoreScope = 'LocalMachine'
+$DestStoreName = 'My'
+
+$DestStore = New-Object  -TypeName System.Security.Cryptography.X509Certificates.X509Store  -ArgumentList $DestStoreName, $DestStoreScope
+$DestStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+$DestStore.Add($cert)
+
+$SourceStore.Close()
+$DestStore.Close()
+
+winrm create winrm/config/listener?Address=*+Transport=HTTPS  `@`{Hostname=`"($certId)`"`;CertificateThumbprint=`"($cert.Thumbprint)`"`}
+
+net stop winrm
+sc config winrm start=auto
+net start winrm
+POWERSHELL
+  end
+  # rubocop:enable Metrics/LineLength
   # rubocop:enable Metrics/MethodLength
 
   # create a simple cert for a public_key
